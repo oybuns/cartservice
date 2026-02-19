@@ -2,16 +2,21 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+permissions: # 이 부분이 반드시 추가되어야 배포가 실행됩니다
+  contents: read
+  pages: write
+  id-token: write
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - setup-node:
-          node-version: 18
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
       - run: npm install
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v1
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: './dist'
-      - uses: actions/deploy-pages@v1
+      - uses: actions/deploy-pages@v4
