@@ -1,12 +1,13 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import Header from '../components/Header';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 
 const Dashboard: React.FC = () => {
-  const { services, language, user } = useApp();
+  const { services, language } = useApp();
   const navigate = useNavigate();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const getPartTextColorClass = (index: number) => {
     const colors = ['text-blue-600', 'text-emerald-600', 'text-amber-600', 'text-rose-600', 'text-indigo-600', 'text-teal-600', 'text-orange-600', 'text-purple-600'];
@@ -15,7 +16,7 @@ const Dashboard: React.FC = () => {
 
   const nextService = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
-    const upcoming = services
+    const upcoming = [...services]
       .filter(s => s.date >= todayStr)
       .sort((a, b) => a.date.localeCompare(b.date));
     return upcoming[0];
@@ -29,25 +30,26 @@ const Dashboard: React.FC = () => {
   const handleShare = async (slot: any) => {
     if (!nextService) return;
 
-    // 공유용 텍스트 생성
+    // 공유용 텍스트 생성 (사용자가 제공한 이미지 형식과 동일하게 구성)
     let shareText = `📋 파트별 임명 현황 (${nextService.date})\n\n`;
-    shareText += `⏰ 시간: ${slot.startTime} - ${slot.endTime}\n`;
-    shareText += `📍 장소: ${slot.location}\n\n`;
+    shareText += `⏰ ${slot.startTime} - ${slot.endTime}\n`;
+    shareText += `📍 ${slot.location}\n\n`;
     
     if (slot.appointments && slot.appointments.length > 0) {
       slot.appointments.forEach((app: any, idx: number) => {
-        const names = app.volunteerNames.join(', ') || '미배정';
+        const names = app.volunteerNames.join(', ') || (language === 'KO' ? '미배정' : 'Unassigned');
+        // 파트명 - 시간대 - 이름 순으로 정렬
         shareText += `${idx + 1}파트 ${app.timeRange}   ${names}\n`;
       });
     } else {
-      shareText += `(배정된 명단이 없습니다)\n`;
+      shareText += language === 'KO' ? `(배정된 명단이 없습니다)\n` : `(No assignments yet)\n`;
     }
 
     if (slot.notice) {
       shareText += `\n📢 공지사항\n${slot.notice}`;
     }
 
-    shareText += `\n\n- 전시물 봉사 관리 시스템 -`;
+    shareText += `\n\n- 전시대 봉사 관리 시스템 -`;
 
     // 시스템 공유 기능 시도 (모바일 등)
     if (navigator.share) {
@@ -57,16 +59,24 @@ const Dashboard: React.FC = () => {
           text: shareText,
         });
       } catch (err) {
-        console.error('공유 실패:', err);
+        // 사용자가 취소한 경우 외에 에러 발생 시 클립보드 복사 시도
+        if (err instanceof Error && err.name !== 'AbortError') {
+          copyToClipboard(shareText, slot.id);
+        }
       }
     } else {
-      // 클립보드 복사 (PC 등)
-      try {
-        await navigator.clipboard.writeText(shareText);
-        alert('임명 현황이 클립보드에 복사되었습니다. 카카오톡 등에 붙여넣기 하세요!');
-      } catch (err) {
-        alert('복사에 실패했습니다. 직접 복사해 주세요.');
-      }
+      copyToClipboard(shareText, slot.id);
+    }
+  };
+
+  const copyToClipboard = async (text: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+      alert(language === 'KO' ? '현황이 복사되었습니다. 카카오톡 등에 붙여넣기 하세요!' : 'Status copied to clipboard!');
+    } catch (err) {
+      alert(language === 'KO' ? '복사에 실패했습니다.' : 'Failed to copy.');
     }
   };
 
@@ -78,6 +88,8 @@ const Dashboard: React.FC = () => {
     unassigned: language === 'KO' ? '미배정' : 'Unassigned',
     notice: language === 'KO' ? '공지사항' : 'Notice',
     noData: language === 'KO' ? '예정된 임명 정보가 없습니다.' : 'No upcoming assignments.',
+    share: language === 'KO' ? '공유하기' : 'Share',
+    copied: language === 'KO' ? '복사됨!' : 'Copied!'
   };
 
   return (
@@ -105,36 +117,48 @@ const Dashboard: React.FC = () => {
           </div>
           <div className="space-y-4 pb-10">
             {assignedSlots.length > 0 ? assignedSlots.map((slot) => (
-              <div key={slot.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[32px] p-6 shadow-sm space-y-5 animate-fade-in relative overflow-hidden">
-                {/* 공유 버튼 */}
-                <button 
-                  onClick={() => handleShare(slot)}
-                  className="absolute top-6 right-6 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-primary transition-all active:scale-90"
-                  title="현황 공유하기"
-                >
-                  <span className="material-symbols-outlined text-[20px]">share</span>
-                </button>
-
+              <div key={slot.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[40px] p-8 shadow-sm space-y-6 animate-fade-in relative overflow-hidden">
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-1">
-                    <span className="text-xl font-black text-slate-900 dark:text-white">{slot.startTime} - {slot.endTime}</span>
+                    <span className="text-2xl font-black text-slate-900 dark:text-white">{slot.startTime} - {slot.endTime}</span>
                     <div className="flex items-center gap-1.5 text-primary font-black text-sm">
                       <span className="material-symbols-outlined text-sm filled">location_on</span>{slot.location}
                     </div>
                   </div>
+                  
+                  {/* 더욱 눈에 띄는 공유 버튼 */}
+                  <button 
+                    onClick={() => handleShare(slot)}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-black transition-all active:scale-90 shadow-sm border ${
+                      copiedId === slot.id 
+                        ? 'bg-emerald-500 text-white border-emerald-500' 
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-100 dark:border-slate-700'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">{copiedId === slot.id ? 'check' : 'share'}</span>
+                    {copiedId === slot.id ? t.copied : t.share}
+                  </button>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-800/40 rounded-[24px] p-5 space-y-3 border border-slate-100 dark:border-slate-800">
-                  {slot.appointments?.map((app: any, idx: number) => (
-                    <div key={idx} className="flex items-center gap-4 text-xs font-bold">
-                      <div className="flex items-center gap-2 min-w-[130px]">
-                        <span className={`font-black ${getPartTextColorClass(idx)} shrink-0`}>{idx + 1}{t.part}</span>
-                        <span className="text-slate-400 font-medium">{app.timeRange}</span>
-                      </div>
-                      <div className="font-black text-slate-800 dark:text-slate-200">
-                        {app.volunteerNames.join(', ') || t.unassigned}
-                      </div>
+
+                <div className="bg-slate-50 dark:bg-slate-800/40 rounded-[28px] p-6 space-y-4 border border-slate-100 dark:border-slate-800">
+                  {slot.appointments && slot.appointments.length > 0 ? (
+                    <div className="space-y-3">
+                      {slot.appointments.map((app: any, idx: number) => (
+                        <div key={idx} className="flex items-center gap-4 text-xs font-bold">
+                          <div className="flex items-center gap-2 min-w-[140px]">
+                            <span className={`font-black ${getPartTextColorClass(idx)} shrink-0`}>{idx + 1}{t.part}</span>
+                            <span className="text-slate-400 font-medium">{app.timeRange}</span>
+                          </div>
+                          <div className="font-black text-slate-800 dark:text-slate-200">
+                            {app.volunteerNames.join(', ') || t.unassigned}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <p className="text-xs text-slate-400 italic text-center py-2">{t.noData}</p>
+                  )}
+
                   {slot.notice && (
                     <div className="mt-4 p-5 bg-blue-50/50 dark:bg-blue-900/10 rounded-[24px] border border-blue-100 dark:border-blue-800/50">
                       <div className="flex items-center gap-2 text-primary mb-2">
