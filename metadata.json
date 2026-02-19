@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Cart_Service",
+  "description": "공개 봉사 활동을 위한 종합 관리 시스템으로 일정 예약, 기록 확인 및 관리 기능을 제공합니다.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
